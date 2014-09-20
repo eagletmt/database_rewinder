@@ -9,21 +9,21 @@ module DatabaseRewinder
       DatabaseRewinder.record_inserted_table self, sql
       super
     end
+
+    module Hook
+      def establish_connection(*)
+        super
+        Hook.apply!
+      end
+
+      def self.apply!
+        ::ActiveRecord::ConnectionAdapters::SQLite3Adapter.send :prepend, InsertRecorder if defined? ::ActiveRecord::ConnectionAdapters::SQLite3Adapter
+        ::ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.send :prepend, InsertRecorder if defined? ::ActiveRecord::ConnectionAdapters::PostgreSQLAdapter
+        ::ActiveRecord::ConnectionAdapters::AbstractMysqlAdapter.send :prepend, InsertRecorder if defined? ::ActiveRecord::ConnectionAdapters::AbstractMysqlAdapter
+      end
+    end
   end
 end
 
-begin
-  require 'active_record/connection_adapters/sqlite3_adapter'
-  ::ActiveRecord::ConnectionAdapters::SQLite3Adapter.send :prepend, DatabaseRewinder::InsertRecorder
-rescue LoadError
-end
-begin
-  require 'active_record/connection_adapters/postgresql_adapter'
-  ::ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.send :prepend, DatabaseRewinder::InsertRecorder
-rescue LoadError
-end
-begin
-  require 'active_record/connection_adapters/abstract_mysql_adapter'
-  ::ActiveRecord::ConnectionAdapters::AbstractMysqlAdapter.send :prepend, DatabaseRewinder::InsertRecorder
-rescue LoadError
-end
+DatabaseRewinder::InsertRecorder::Hook.apply!
+ActiveRecord::Base.singleton_class.send(:prepend, DatabaseRewinder::InsertRecorder::Hook)
